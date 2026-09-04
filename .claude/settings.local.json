@@ -3,7 +3,14 @@
     "allow": [
       "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-turbopack --yes)",
       "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --yes)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(npx prisma *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(mkdir -p /Users/hrqcred/Desktop/projetos/brasiliacred/src/app/api/pagamentos /Users/hrqcred/Desktop/projetos/brasiliacred/src/app/api/relatorios /Users/hrqcred/Desktop/projetos/brasiliacred/src/app/admin/\\\\\\(dashboard\\\\\\)/calendario /Users/hrqcred/Desktop/projetos/brasiliacred/src/app/admin/\\\\\\(dashboard\\\\\\)/clientes/\\\\[id\\\\])",
+      "Bash(npx next *)",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s http://localhost:3000/api/emprestimos)"
     ]
   }
 }

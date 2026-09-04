@@ -49,5 +49,55 @@ export async function PATCH(req: NextRequest) {
     data: { status },
   });
 
+  if (status === "APROVADA") {
+    let cliente = await prisma.cliente.findUnique({
+      where: { cpf: solicitacao.cpf },
+    });
+
+    if (!cliente) {
+      cliente = await prisma.cliente.create({
+        data: {
+          nome: solicitacao.nome,
+          cpf: solicitacao.cpf,
+          telefone: solicitacao.telefone,
+          email: solicitacao.email,
+        },
+      });
+    }
+
+    const juros = solicitacao.tipo === "SEMANAL" ? 40 : 70;
+    const valorTotal = solicitacao.valor * (1 + juros / 100);
+    const valorParcela = valorTotal / solicitacao.parcelas;
+
+    const emprestimo = await prisma.emprestimo.create({
+      data: {
+        clienteId: cliente.id,
+        valor: solicitacao.valor,
+        juros,
+        tipo: solicitacao.tipo,
+        valorTotal,
+        parcelas: solicitacao.parcelas,
+        valorParcela,
+        status: "ATIVO",
+        dataInicio: new Date(),
+      },
+    });
+
+    const diasIntervalo = solicitacao.tipo === "SEMANAL" ? 7 : 15;
+    const pagamentosData = [];
+    for (let i = 0; i < solicitacao.parcelas; i++) {
+      const dataVencimento = new Date();
+      dataVencimento.setDate(dataVencimento.getDate() + diasIntervalo * (i + 1));
+      pagamentosData.push({
+        emprestimoId: emprestimo.id,
+        valor: valorParcela,
+        numeroParcela: i + 1,
+        dataVencimento,
+      });
+    }
+
+    await prisma.pagamento.createMany({ data: pagamentosData });
+  }
+
   return NextResponse.json(solicitacao);
 }

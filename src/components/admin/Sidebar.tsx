@@ -11,8 +11,10 @@ import {
   DollarSign,
   BarChart3,
   Settings,
+  CalendarDays,
   Menu,
   X,
+  Download,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -21,12 +23,11 @@ const navItems = [
   { href: "/admin/solicitacoes", label: "Solicitações", icon: ClipboardList },
   { href: "/admin/clientes", label: "Clientes", icon: Users },
   { href: "/admin/emprestimos", label: "Empréstimos", icon: Banknote },
+  { href: "/admin/calendario", label: "Calendário", icon: CalendarDays },
+  { href: "/admin/relatorios", label: "Relatórios", icon: BarChart3 },
 ];
 
-const futureItems = [
-  { label: "Relatórios", icon: BarChart3 },
-  { label: "Configurações", icon: Settings },
-];
+const futureItems = [{ label: "Configurações", icon: Settings }];
 
 export default function Sidebar() {
   const pathname = usePathname();

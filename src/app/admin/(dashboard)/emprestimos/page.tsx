@@ -1,7 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Banknote, Plus, X } from "lucide-react";
+import {
+  Banknote,
+  Plus,
+  X,
+  CheckCircle,
+  MessageCircle,
+  Filter,
+  Download,
+} from "lucide-react";
+
+interface Pagamento {
+  id: string;
+  valor: number;
+  numeroParcela: number;
+  dataVencimento: string;
+  dataPagamento: string | null;
+  status: string;
+}
 
 interface Emprestimo {
   id: string;
@@ -14,13 +31,7 @@ interface Emprestimo {
   status: string;
   createdAt: string;
   cliente: { nome: string; cpf: string; telefone: string };
-  pagamentos: {
-    id: string;
-    valor: number;
-    numeroParcela: number;
-    dataVencimento: string;
-    status: string;
-  }[];
+  pagamentos: Pagamento[];
 }
 
 interface ClienteOption {
@@ -34,6 +45,7 @@ const statusColors: Record<string, string> = {
   ATIVO: "bg-green-100 text-green-700",
   QUITADO: "bg-blue-100 text-blue-700",
   ATRASADO: "bg-red-100 text-red-700",
+  PAGO: "bg-emerald-100 text-emerald-700",
 };
 
 export default function EmprestimosPage() {
@@ -43,6 +55,8 @@ export default function EmprestimosPage() {
   const [showForm, setShowForm] = useState(false);
   const [showDetail, setShowDetail] = useState<Emprestimo | null>(null);
   const [erro, setErro] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState("TODOS");
+  const [filtroTipo, setFiltroTipo] = useState("TODOS");
 
   useEffect(() => {
     Promise.all([
@@ -54,6 +68,12 @@ export default function EmprestimosPage() {
       setLoading(false);
     });
   }, []);
+
+  const filtered = emprestimos.filter((e) => {
+    if (filtroStatus !== "TODOS" && e.status !== filtroStatus) return false;
+    if (filtroTipo !== "TODOS" && e.tipo !== filtroTipo) return false;
+    return true;
+  });
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -88,15 +108,39 @@ export default function EmprestimosPage() {
     }
   }
 
-  async function updateStatus(id: string, status: string) {
-    await fetch("/api/emprestimos", {
+  async function marcarPago(pagamentoId: string, emprestimoId: string) {
+    await fetch("/api/pagamentos", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status }),
+      body: JSON.stringify({ id: pagamentoId, status: "PAGO" }),
     });
-    setEmprestimos((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, status } : e))
+    const res = await fetch("/api/emprestimos");
+    const updated = await res.json();
+    setEmprestimos(updated);
+    if (showDetail) {
+      const det = updated.find((e: Emprestimo) => e.id === showDetail.id);
+      if (det) setShowDetail(det);
+    }
+  }
+
+  function cobrarWhatsApp(
+    telefone: string,
+    nome: string,
+    valor: number,
+    data: string
+  ) {
+    const phone = telefone.replace(/\D/g, "");
+    const dataFmt = new Date(data).toLocaleDateString("pt-BR");
+    const msg = encodeURIComponent(
+      `Olá ${nome}! Aqui é da BrasíliaCred. Passando para lembrar da parcela de R$ ${valor.toFixed(2)} com vencimento em ${dataFmt}. Podemos contar com o pagamento? Obrigado!`
     );
+    window.open(`https://wa.me/55${phone}?text=${msg}`, "_blank");
+  }
+
+  function getParcelaStatus(p: Pagamento) {
+    if (p.status === "PAGO") return "PAGO";
+    if (new Date(p.dataVencimento) < new Date()) return "ATRASADO";
+    return "PENDENTE";
   }
 
   return (
@@ -108,21 +152,56 @@ export default function EmprestimosPage() {
             Gerencie os empréstimos ativos e histórico
           </p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-brand-green hover:bg-brand-green-dark text-white font-medium px-4 py-2 rounded-xl flex items-center gap-2 text-sm transition-colors"
+        <div className="flex gap-2">
+          <a
+            href="/api/relatorios?tipo=emprestimos"
+            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-brand-green bg-white border border-gray-200 px-3 py-2 rounded-xl transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV
+          </a>
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-brand-green hover:bg-brand-green-dark text-white font-medium px-4 py-2 rounded-xl flex items-center gap-2 text-sm transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Empréstimo
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 mb-6">
+        <Filter className="w-4 h-4 text-gray-400" />
+        <select
+          value={filtroStatus}
+          onChange={(e) => setFiltroStatus(e.target.value)}
+          className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-brand-green focus:outline-none"
         >
-          <Plus className="w-4 h-4" />
-          Novo Empréstimo
-        </button>
+          <option value="TODOS">Todos os status</option>
+          <option value="ATIVO">Ativo</option>
+          <option value="QUITADO">Quitado</option>
+          <option value="PENDENTE">Pendente</option>
+        </select>
+        <select
+          value={filtroTipo}
+          onChange={(e) => setFiltroTipo(e.target.value)}
+          className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm focus:border-brand-green focus:outline-none"
+        >
+          <option value="TODOS">Todos os tipos</option>
+          <option value="SEMANAL">Semanal</option>
+          <option value="QUINZENAL">Quinzenal</option>
+        </select>
+        <span className="text-xs text-gray-400 ml-2">
+          {filtered.length} resultado(s)
+        </span>
       </div>
 
       {loading ? (
         <div className="text-center py-12 text-gray-400">Carregando...</div>
-      ) : emprestimos.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <Banknote className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          Nenhum empréstimo registrado
+          Nenhum empréstimo encontrado
         </div>
       ) : (
         <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
@@ -157,60 +236,84 @@ export default function EmprestimosPage() {
                 </tr>
               </thead>
               <tbody>
-                {emprestimos.map((e) => (
-                  <tr
-                    key={e.id}
-                    className="border-b border-gray-50 hover:bg-gray-50"
-                  >
-                    <td className="py-3 px-4">
-                      <div className="font-medium text-gray-900">
-                        {e.cliente.nome}
-                      </div>
-                      <div className="text-gray-500 text-xs">
-                        {e.cliente.telefone}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-gray-900 font-medium">
-                      R$ {e.valor.toLocaleString("pt-BR")}
-                    </td>
-                    <td className="py-3 px-4 text-brand-green font-medium">
-                      R${" "}
-                      {e.valorTotal.toLocaleString("pt-BR", {
-                        minimumFractionDigits: 2,
-                      })}
-                    </td>
-                    <td className="py-3 px-4 text-gray-600">{e.tipo}</td>
-                    <td className="py-3 px-4 text-gray-600">{e.parcelas}x</td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[e.status] || "bg-gray-100 text-gray-600"}`}
-                      >
-                        {e.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-gray-500">
-                      {new Date(e.createdAt).toLocaleDateString("pt-BR")}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => setShowDetail(e)}
-                          className="text-xs text-blue-600 hover:underline"
-                        >
-                          Ver
-                        </button>
-                        {e.status === "ATIVO" && (
-                          <button
-                            onClick={() => updateStatus(e.id, "QUITADO")}
-                            className="text-xs text-green-600 hover:underline ml-2"
-                          >
-                            Quitar
-                          </button>
+                {filtered.map((e) => {
+                  const parcelasAtrasadas = e.pagamentos.filter(
+                    (p) =>
+                      p.status === "PENDENTE" &&
+                      new Date(p.dataVencimento) < new Date()
+                  ).length;
+                  return (
+                    <tr
+                      key={e.id}
+                      className="border-b border-gray-50 hover:bg-gray-50"
+                    >
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-gray-900">
+                          {e.cliente.nome}
+                        </div>
+                        <div className="text-gray-500 text-xs">
+                          {e.cliente.telefone}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-gray-900 font-medium">
+                        R$ {e.valor.toLocaleString("pt-BR")}
+                      </td>
+                      <td className="py-3 px-4 text-brand-green font-medium">
+                        R${" "}
+                        {e.valorTotal.toLocaleString("pt-BR", {
+                          minimumFractionDigits: 2,
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">{e.tipo}</td>
+                      <td className="py-3 px-4">
+                        <span className="text-gray-600">{e.parcelas}x</span>
+                        {parcelasAtrasadas > 0 && (
+                          <span className="ml-1.5 bg-red-100 text-red-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                            {parcelasAtrasadas} atraso
+                          </span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[e.status] || "bg-gray-100 text-gray-600"}`}
+                        >
+                          {e.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-gray-500">
+                        {new Date(e.createdAt).toLocaleDateString("pt-BR")}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setShowDetail(e)}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            Ver
+                          </button>
+                          {e.status === "ATIVO" && (
+                            <button
+                              onClick={() =>
+                                cobrarWhatsApp(
+                                  e.cliente.telefone,
+                                  e.cliente.nome,
+                                  e.valorParcela,
+                                  e.pagamentos.find(
+                                    (p) => p.status === "PENDENTE"
+                                  )?.dataVencimento || ""
+                                )
+                              }
+                              className="flex items-center gap-1 bg-[#25D366] text-white text-[10px] font-medium px-2 py-0.5 rounded-lg hover:bg-[#20BD5A] transition-colors"
+                            >
+                              <MessageCircle className="w-2.5 h-2.5" />
+                              Cobrar
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -354,42 +457,84 @@ export default function EmprestimosPage() {
                   })}
                 </dd>
               </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Status:</dt>
+                <dd>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[showDetail.status] || "bg-gray-100 text-gray-600"}`}
+                  >
+                    {showDetail.status}
+                  </span>
+                </dd>
+              </div>
             </dl>
 
             {showDetail.pagamentos.length > 0 && (
               <>
                 <h4 className="font-semibold text-gray-900 mb-3">Parcelas</h4>
                 <div className="space-y-2">
-                  {showDetail.pagamentos.map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center justify-between bg-gray-50 p-3 rounded-xl text-sm"
-                    >
-                      <div>
-                        <span className="font-medium">
-                          Parcela {p.numeroParcela}
-                        </span>
-                        <span className="text-gray-500 ml-2">
-                          {new Date(p.dataVencimento).toLocaleDateString(
-                            "pt-BR"
+                  {showDetail.pagamentos.map((p) => {
+                    const st = getParcelaStatus(p);
+                    return (
+                      <div
+                        key={p.id}
+                        className={`flex items-center justify-between p-3 rounded-xl border ${
+                          st === "PAGO"
+                            ? "bg-emerald-50 border-emerald-200"
+                            : st === "ATRASADO"
+                              ? "bg-red-50 border-red-200"
+                              : "bg-amber-50 border-amber-200"
+                        }`}
+                      >
+                        <div>
+                          <span className="font-medium text-sm">
+                            Parcela {p.numeroParcela}
+                          </span>
+                          <span className="text-gray-500 text-xs ml-2">
+                            {new Date(p.dataVencimento).toLocaleDateString(
+                              "pt-BR"
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">
+                            R${" "}
+                            {p.valor.toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </span>
+                          {st === "PAGO" ? (
+                            <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                              Pago
+                            </span>
+                          ) : (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => marcarPago(p.id, showDetail.id)}
+                                className="flex items-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium px-2 py-1 rounded-lg transition-colors"
+                              >
+                                <CheckCircle className="w-3 h-3" />
+                                Pago
+                              </button>
+                              <button
+                                onClick={() =>
+                                  cobrarWhatsApp(
+                                    showDetail.cliente.telefone,
+                                    showDetail.cliente.nome,
+                                    p.valor,
+                                    p.dataVencimento
+                                  )
+                                }
+                                className="flex items-center gap-1 bg-[#25D366] hover:bg-[#20BD5A] text-white text-xs font-medium px-2 py-1 rounded-lg transition-colors"
+                              >
+                                <MessageCircle className="w-3 h-3" />
+                              </button>
+                            </div>
                           )}
-                        </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">
-                          R${" "}
-                          {p.valor.toLocaleString("pt-BR", {
-                            minimumFractionDigits: 2,
-                          })}
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[p.status] || "bg-gray-100 text-gray-600"}`}
-                        >
-                          {p.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}

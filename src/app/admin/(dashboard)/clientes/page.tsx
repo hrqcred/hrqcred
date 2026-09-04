@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Users, Plus, Search, X } from "lucide-react";
+import {
+  Users,
+  Plus,
+  Search,
+  X,
+  ShieldBan,
+  ShieldCheck,
+  Eye,
+  Download,
+} from "lucide-react";
+import Link from "next/link";
 
 interface Cliente {
   id: string;
@@ -10,15 +20,27 @@ interface Cliente {
   telefone: string;
   email: string | null;
   plataforma: string | null;
+  classificacao: string;
+  bloqueado: boolean;
   createdAt: string;
   emprestimos: { id: string; valor: number; status: string }[];
 }
+
+const classColors: Record<string, string> = {
+  NOVO: "bg-blue-100 text-blue-700",
+  BOM: "bg-emerald-100 text-emerald-700",
+  REGULAR: "bg-amber-100 text-amber-700",
+  RUIM: "bg-red-100 text-red-700",
+  VIP: "bg-purple-100 text-purple-700",
+};
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [filtroClass, setFiltroClass] = useState("TODOS");
+  const [filtroBloqueado, setFiltroBloqueado] = useState("TODOS");
   const [erro, setErro] = useState("");
 
   useEffect(() => {
@@ -30,12 +52,19 @@ export default function ClientesPage() {
       });
   }, []);
 
-  const filtered = clientes.filter(
-    (c) =>
-      c.nome.toLowerCase().includes(search.toLowerCase()) ||
-      c.cpf.includes(search) ||
-      c.telefone.includes(search)
-  );
+  const filtered = clientes.filter((c) => {
+    if (
+      search &&
+      !c.nome.toLowerCase().includes(search.toLowerCase()) &&
+      !c.cpf.includes(search) &&
+      !c.telefone.includes(search)
+    )
+      return false;
+    if (filtroClass !== "TODOS" && c.classificacao !== filtroClass) return false;
+    if (filtroBloqueado === "SIM" && !c.bloqueado) return false;
+    if (filtroBloqueado === "NAO" && c.bloqueado) return false;
+    return true;
+  });
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -61,11 +90,36 @@ export default function ClientesPage() {
       }
 
       const cliente = await res.json();
-      setClientes((prev) => [{ ...cliente, emprestimos: [] }, ...prev]);
+      setClientes((prev) => [
+        { ...cliente, emprestimos: [], classificacao: "NOVO", bloqueado: false },
+        ...prev,
+      ]);
       setShowForm(false);
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Erro ao criar cliente");
     }
+  }
+
+  async function toggleBloqueio(id: string, bloqueado: boolean) {
+    await fetch(`/api/clientes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bloqueado: !bloqueado }),
+    });
+    setClientes((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, bloqueado: !bloqueado } : c))
+    );
+  }
+
+  async function updateClassificacao(id: string, classificacao: string) {
+    await fetch(`/api/clientes/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ classificacao }),
+    });
+    setClientes((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, classificacao } : c))
+    );
   }
 
   return (
@@ -75,23 +129,55 @@ export default function ClientesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
           <p className="text-gray-500 mt-1">Gerencie seus clientes</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-brand-green hover:bg-brand-green-dark text-white font-medium px-4 py-2 rounded-xl flex items-center gap-2 text-sm transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Cliente
-        </button>
+        <div className="flex gap-2">
+          <a
+            href="/api/relatorios?tipo=clientes"
+            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-brand-green bg-white border border-gray-200 px-3 py-2 rounded-xl transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV
+          </a>
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-brand-green hover:bg-brand-green-dark text-white font-medium px-4 py-2 rounded-xl flex items-center gap-2 text-sm transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Cliente
+          </button>
+        </div>
       </div>
 
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por nome, CPF ou telefone..."
-          className="w-full bg-white border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-brand-green focus:outline-none"
-        />
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nome, CPF ou telefone..."
+            className="w-full bg-white border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:border-brand-green focus:outline-none"
+          />
+        </div>
+        <select
+          value={filtroClass}
+          onChange={(e) => setFiltroClass(e.target.value)}
+          className="bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-brand-green focus:outline-none"
+        >
+          <option value="TODOS">Todas classificações</option>
+          <option value="NOVO">Novo</option>
+          <option value="BOM">Bom</option>
+          <option value="REGULAR">Regular</option>
+          <option value="RUIM">Ruim</option>
+          <option value="VIP">VIP</option>
+        </select>
+        <select
+          value={filtroBloqueado}
+          onChange={(e) => setFiltroBloqueado(e.target.value)}
+          className="bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:border-brand-green focus:outline-none"
+        >
+          <option value="TODOS">Todos</option>
+          <option value="NAO">Ativos</option>
+          <option value="SIM">Bloqueados</option>
+        </select>
       </div>
 
       {loading ? (
@@ -117,13 +203,16 @@ export default function ClientesPage() {
                     Telefone
                   </th>
                   <th className="text-left py-3 px-4 font-medium text-gray-600">
-                    Plataforma
+                    Classificação
                   </th>
                   <th className="text-left py-3 px-4 font-medium text-gray-600">
                     Empréstimos
                   </th>
                   <th className="text-left py-3 px-4 font-medium text-gray-600">
-                    Cadastro
+                    Status
+                  </th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-600">
+                    Ações
                   </th>
                 </tr>
               </thead>
@@ -131,23 +220,68 @@ export default function ClientesPage() {
                 {filtered.map((c) => (
                   <tr
                     key={c.id}
-                    className="border-b border-gray-50 hover:bg-gray-50"
+                    className={`border-b border-gray-50 hover:bg-gray-50 ${c.bloqueado ? "opacity-60" : ""}`}
                   >
-                    <td className="py-3 px-4 font-medium text-gray-900">
-                      {c.nome}
+                    <td className="py-3 px-4">
+                      <div className="font-medium text-gray-900">{c.nome}</div>
+                      <div className="text-gray-500 text-xs">
+                        {c.plataforma || "—"}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-gray-600">{c.cpf}</td>
                     <td className="py-3 px-4 text-gray-600">{c.telefone}</td>
-                    <td className="py-3 px-4 text-gray-600">
-                      {c.plataforma || "—"}
+                    <td className="py-3 px-4">
+                      <select
+                        value={c.classificacao}
+                        onChange={(e) =>
+                          updateClassificacao(c.id, e.target.value)
+                        }
+                        className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${classColors[c.classificacao] || "bg-gray-100 text-gray-600"}`}
+                      >
+                        <option value="NOVO">Novo</option>
+                        <option value="BOM">Bom</option>
+                        <option value="REGULAR">Regular</option>
+                        <option value="RUIM">Ruim</option>
+                        <option value="VIP">VIP</option>
+                      </select>
                     </td>
                     <td className="py-3 px-4">
                       <span className="bg-brand-green/10 text-brand-green px-2 py-0.5 rounded-full text-xs font-medium">
                         {c.emprestimos.length}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-gray-500">
-                      {new Date(c.createdAt).toLocaleDateString("pt-BR")}
+                    <td className="py-3 px-4">
+                      {c.bloqueado ? (
+                        <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                          Bloqueado
+                        </span>
+                      ) : (
+                        <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                          Ativo
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/admin/clientes/${c.id}`}
+                          className="text-blue-600 hover:text-blue-800 transition-colors"
+                          title="Ver perfil"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Link>
+                        <button
+                          onClick={() => toggleBloqueio(c.id, c.bloqueado)}
+                          className={`transition-colors ${c.bloqueado ? "text-emerald-600 hover:text-emerald-800" : "text-red-500 hover:text-red-700"}`}
+                          title={c.bloqueado ? "Desbloquear" : "Bloquear"}
+                        >
+                          {c.bloqueado ? (
+                            <ShieldCheck className="w-4 h-4" />
+                          ) : (
+                            <ShieldBan className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
