@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   Download,
+  TrendingUp,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/admin/emprestimos", label: "Empréstimos", icon: Banknote },
   { href: "/admin/calendario", label: "Calendário", icon: CalendarDays },
   { href: "/admin/relatorios", label: "Relatórios", icon: BarChart3 },
+  { href: "/admin/funil", label: "Funil / CRO", icon: TrendingUp },
 ];
 
 const futureItems = [{ label: "Configurações", icon: Settings }];
